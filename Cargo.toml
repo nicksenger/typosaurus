@@ -1,0 +1,15 @@
+[package]
+name = "typosaurus"
+description = "Heterogenous lists and other type-level tomfoolery"
+version = "0.1.0"
+authors = ["Nick Senger <dev@nsenger.com>"]
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/nicksenger/typosaurus"
+categories = ["science"]
+keywords = ["science", "no_std", "math", "language", "tool", "metaprogramming", "types", "dinosaurs"]
+rust-version = "1.85"
+
+[dependencies]
+typenum = "1"
+
