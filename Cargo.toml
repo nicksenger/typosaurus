@@ -7,7 +7,7 @@ edition = "2024"
 license = "MIT"
 repository = "https://github.com/nicksenger/typosaurus"
 categories = ["science"]
-keywords = ["science", "no_std", "math", "language", "tool", "metaprogramming", "types", "dinosaurs"]
+keywords = ["science", "no_std", "metaprogramming", "types", "dinosaurs"]
 rust-version = "1.85"
 
 [dependencies]
