@@ -32,6 +32,13 @@ macro_rules! arrayify {
                 [<$t as $crate::collections::array::Arrayify<T>>::value(),$(<$ts as $crate::collections::array::Arrayify<T>>::value()),*]
             }
         }
+
+        impl<T, $t: $crate::collections::array::Arrayify<T, Out = T>,$($ts: $crate::collections::array::Arrayify<T, Out = T>),*> $crate::collections::array::Arrayify<T> for $crate::value_list_ty![$t,$($ts),*] {
+            type Out = [T; $n];
+            fn value() -> [T; $n] {
+                [<$t as $crate::collections::array::Arrayify<T>>::value(),$(<$ts as $crate::collections::array::Arrayify<T>>::value()),*]
+            }
+        }
     }
 }
 impl<T, T1: Arrayify<T, Out = T>> Arrayify<T> for L<(T1, L<()>)> {

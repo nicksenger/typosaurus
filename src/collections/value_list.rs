@@ -20,9 +20,10 @@ macro_rules! value_list {
     [$a:expr] => { $crate::collections::value_list::List(($a, $crate::collections::value_list::List(()))) };
     [$a:expr,$($bs:expr),+] => { $crate::collections::value_list::List(($a, $crate::value_list![$($bs),+])) };
 }
+#[macro_export]
 macro_rules! value_list_ty {
     [$a:ty] => { $crate::collections::value_list::List<($a, $crate::collections::value_list::List<()>)> };
-    [$a:ty,$($bs:ty),+] => { $crate::collections::value_list::List<($a, value_list_ty![$($bs),+])> };
+    [$a:ty,$($bs:ty),+] => { $crate::collections::value_list::List<($a, $crate::value_list_ty![$($bs),+])> };
 }
 pub type Append<A, B> = <(A, B) as Mappend>::Out;
 pub type Idx<T, N> = <(T, N) as Indexed>::Out;
@@ -253,6 +254,114 @@ tuplify![
     (T11, k),
     (T12, l)
 ];
+tuplify![
+    (T1, a),
+    (T2, b),
+    (T3, c),
+    (T4, d),
+    (T5, e),
+    (T6, f),
+    (T7, g),
+    (T8, h),
+    (T9, i),
+    (T10, j),
+    (T11, k),
+    (T12, l),
+    (T13, m)
+];
+tuplify![
+    (T1, a),
+    (T2, b),
+    (T3, c),
+    (T4, d),
+    (T5, e),
+    (T6, f),
+    (T7, g),
+    (T8, h),
+    (T9, i),
+    (T10, j),
+    (T11, k),
+    (T12, l),
+    (T13, m),
+    (T14, n)
+];
+tuplify![
+    (T1, a),
+    (T2, b),
+    (T3, c),
+    (T4, d),
+    (T5, e),
+    (T6, f),
+    (T7, g),
+    (T8, h),
+    (T9, i),
+    (T10, j),
+    (T11, k),
+    (T12, l),
+    (T13, m),
+    (T14, n),
+    (T15, o)
+];
+tuplify![
+    (T1, a),
+    (T2, b),
+    (T3, c),
+    (T4, d),
+    (T5, e),
+    (T6, f),
+    (T7, g),
+    (T8, h),
+    (T9, i),
+    (T10, j),
+    (T11, k),
+    (T12, l),
+    (T13, m),
+    (T14, n),
+    (T15, o),
+    (T16, p)
+];
+
+impl<T1> List<(T1, Empty)> {
+    pub fn into_array(self) -> [T1; 1] {
+        [self.0 .0]
+    }
+}
+macro_rules! arrayify {
+    [$n:literal,$h:ident,$($hs:ident),+] => {
+        impl<T> arrayify_ty!($h,$($hs),+) {
+            pub fn into_array(self) -> [T; $n] {
+                let ($h, tail) = (self.0.0, self.0.1);
+                $(
+                    let $hs = tail.0.0;
+                    #[allow(unused)]
+                    let tail = tail.0.1;
+                )+
+                [$h,$($hs),+]
+            }
+        }
+    }
+}
+macro_rules! arrayify_ty {
+    [$h:ident] => { List<(T, Empty)> };
+    [$h:ident,$($hs:ident),+] => {
+        List<(T, arrayify_ty!($($hs),*))>
+    }
+}
+arrayify![2,a,b];
+arrayify![3,a,b,c];
+arrayify![4,a,b,c,d];
+arrayify![5,a,b,c,d,e];
+arrayify![6,a,b,c,d,e,f];
+arrayify![7,a,b,c,d,e,f,g];
+arrayify![8,a,b,c,d,e,f,g,h];
+arrayify![9,a,b,c,d,e,f,g,h,i];
+arrayify![10,a,b,c,d,e,f,g,h,i,j];
+arrayify![11,a,b,c,d,e,f,g,h,i,j,k];
+arrayify![12,a,b,c,d,e,f,g,h,i,j,k,l];
+arrayify![13,a,b,c,d,e,f,g,h,i,j,k,l,m];
+arrayify![14,a,b,c,d,e,f,g,h,i,j,k,l,m,n];
+arrayify![15,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o];
+arrayify![16,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p];
 
 impl Container for List<()> {
     type Content = ();
