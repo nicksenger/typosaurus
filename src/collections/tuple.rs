@@ -1,6 +1,17 @@
 use typenum::{Bit, UInt, UTerm, Unsigned};
 
+use crate::traits::functor::Mapper;
+
 use super::list::List as L;
+
+pub struct Left;
+impl<T, U> Mapper<(T, U)> for Left {
+    type Out = T;
+}
+pub struct Right;
+impl<T, U> Mapper<(T, U)> for Right {
+    type Out = U;
+}
 
 pub trait Value: Tuplify {
     type Out;
@@ -72,8 +83,12 @@ tuplify![T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11];
 tuplify![T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12];
 tuplify![T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13];
 tuplify![T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14];
-tuplify![T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15];
-tuplify![T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16];
+tuplify![
+    T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15
+];
+tuplify![
+    T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16
+];
 
 macro_rules! detuplify {
     [$($ts:ident),+] => {
@@ -95,8 +110,12 @@ detuplify![T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11];
 detuplify![T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12];
 detuplify![T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13];
 detuplify![T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14];
-detuplify![T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15];
-detuplify![T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16];
+detuplify![
+    T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15
+];
+detuplify![
+    T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16
+];
 
 #[cfg(test)]
 mod test {

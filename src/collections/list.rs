@@ -9,12 +9,15 @@ use crate::collections::Container;
 use crate::num::Addition;
 use crate::traits::applicative;
 use crate::traits::monoid::Monoid;
+use crate::traits::semigroup::Semigroup;
 use crate::traits::{
     fold::Foldable,
     functor::{Map, Mapper},
     monoid::Mempty,
     semigroup::Mappend,
 };
+
+use super::tuple;
 
 #[macro_export]
 macro_rules! list {
@@ -128,10 +131,47 @@ where
     type Out = <(T, <UInt<UInt<U, Ba>, Bb> as Sub<U1>>::Output) as Skippable>::Out;
 }
 
-type IntoOnes<T> = <(T, Ones) as Map<<T as Container>::Content, Ones>>::Out;
+pub type IntoOnes<T> = <(T, Ones) as Map<<T as Container>::Content, Ones>>::Out;
 pub type Len<T> = <IntoOnes<T> as Foldable<Addition>>::Out;
 pub type All<T> = <T as Foldable<Both>>::Out;
 pub type Any<T> = <T as Foldable<Either>>::Out;
+pub type WithNotEquals<T, U> =
+    <(T, WithNotEqualTo<U>) as Map<<T as Container>::Content, WithNotEqualTo<U>>>::Out;
+pub type WithEquals<T, U> =
+    <(T, WithEqualTo<U>) as Map<<T as Container>::Content, WithEqualTo<U>>>::Out;
+pub type Exclude<T, U> = <WithNotEquals<T, U> as Foldable<Filter>>::Out;
+pub type Only<T, U> = <WithEquals<T, U> as Foldable<Filter>>::Out;
+pub type UntupleLeft<T> = <(T, tuple::Left) as Map<<T as Container>::Content, tuple::Left>>::Out;
+pub type UntupleRight<T> = <(T, tuple::Right) as Map<<T as Container>::Content, tuple::Right>>::Out;
+
+pub struct WithEqualTo<U>(PhantomData<U>);
+impl<T, U> Mapper<T> for WithEqualTo<U>
+where
+    (T, U): crate::cmp::IsEqual,
+{
+    type Out = (T, <(T, U) as crate::cmp::IsEqual>::Out);
+}
+pub struct WithNotEqualTo<U>(PhantomData<U>);
+impl<T, U> Mapper<T> for WithNotEqualTo<U>
+where
+    (T, U): crate::cmp::IsNotEqual,
+{
+    type Out = (T, <(T, U) as crate::cmp::IsNotEqual>::Out);
+}
+
+pub struct Filter;
+impl<Lhs, Rhs> Semigroup<(Lhs, True), Rhs> for Filter
+where
+    (Rhs, List<(Lhs, Empty)>): Mappend,
+{
+    type Mappend = <(Rhs, List<(Lhs, Empty)>) as Mappend>::Out;
+}
+impl<Lhs, Rhs> Semigroup<(Lhs, False), Rhs> for Filter {
+    type Mappend = Rhs;
+}
+impl Mempty for Filter {
+    type Out = Empty;
+}
 
 pub trait Indexed {
     type Out;
@@ -300,6 +340,26 @@ where
     ) as Mappend>::Out;
 }
 pub type Zip<T, U> = <(T, U) as Zippable>::Out;
+
+pub trait ZipTuple {
+    type Out;
+}
+impl ZipTuple for (Empty, Empty) {
+    type Out = Empty;
+}
+impl<T, U> ZipTuple for (Empty, List<(T, U)>) {
+    type Out = Empty;
+}
+impl<T, U> ZipTuple for (List<(T, U)>, Empty) {
+    type Out = Empty;
+}
+impl<A, B, T, U> ZipTuple for (List<(A, T)>, List<(B, U)>)
+where
+    (T, U): ZipTuple,
+    (List<((A, B), Empty)>, <(T, U) as ZipTuple>::Out): Mappend,
+{
+    type Out = <(List<((A, B), Empty)>, <(T, U) as ZipTuple>::Out) as Mappend>::Out;
+}
 
 #[cfg(test)]
 mod test {

@@ -1,7 +1,7 @@
 use core::ops::Add;
 use core::ops::Sub;
 
-use typenum::{Bit, IsEqual, UInt, Unsigned, U0, U1};
+use typenum::{Bit, IsEqual, U0, U1, UInt, Unsigned};
 
 use crate::bool::monoid::{Both, Either};
 use crate::bool::{And, Bool, False, Not, Or, True};
@@ -162,7 +162,7 @@ pub type Empty = List<()>;
 pub struct List<T>(pub T);
 impl<T1> List<(T1, Empty)> {
     pub fn tuplify(self) -> T1 {
-        self.0 .0
+        self.0.0
     }
 }
 macro_rules! tuplify {
@@ -323,7 +323,7 @@ tuplify![
 
 impl<T1> List<(T1, Empty)> {
     pub fn into_array(self) -> [T1; 1] {
-        [self.0 .0]
+        [self.0.0]
     }
 }
 macro_rules! arrayify {
@@ -347,21 +347,21 @@ macro_rules! arrayify_ty {
         List<(T, arrayify_ty!($($hs),*))>
     }
 }
-arrayify![2,a,b];
-arrayify![3,a,b,c];
-arrayify![4,a,b,c,d];
-arrayify![5,a,b,c,d,e];
-arrayify![6,a,b,c,d,e,f];
-arrayify![7,a,b,c,d,e,f,g];
-arrayify![8,a,b,c,d,e,f,g,h];
-arrayify![9,a,b,c,d,e,f,g,h,i];
-arrayify![10,a,b,c,d,e,f,g,h,i,j];
-arrayify![11,a,b,c,d,e,f,g,h,i,j,k];
-arrayify![12,a,b,c,d,e,f,g,h,i,j,k,l];
-arrayify![13,a,b,c,d,e,f,g,h,i,j,k,l,m];
-arrayify![14,a,b,c,d,e,f,g,h,i,j,k,l,m,n];
-arrayify![15,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o];
-arrayify![16,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p];
+arrayify![2, a, b];
+arrayify![3, a, b, c];
+arrayify![4, a, b, c, d];
+arrayify![5, a, b, c, d, e];
+arrayify![6, a, b, c, d, e, f];
+arrayify![7, a, b, c, d, e, f, g];
+arrayify![8, a, b, c, d, e, f, g, h];
+arrayify![9, a, b, c, d, e, f, g, h, i];
+arrayify![10, a, b, c, d, e, f, g, h, i, j];
+arrayify![11, a, b, c, d, e, f, g, h, i, j, k];
+arrayify![12, a, b, c, d, e, f, g, h, i, j, k, l];
+arrayify![13, a, b, c, d, e, f, g, h, i, j, k, l, m];
+arrayify![14, a, b, c, d, e, f, g, h, i, j, k, l, m, n];
+arrayify![15, a, b, c, d, e, f, g, h, i, j, k, l, m, n, o];
+arrayify![16, a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p];
 
 impl Container for List<()> {
     type Content = ();
