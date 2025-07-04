@@ -1,6 +1,7 @@
 #![no_std]
 
 pub mod bool;
+pub mod cmp;
 pub mod collections;
 pub mod num;
 pub mod traits;
