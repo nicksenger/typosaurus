@@ -6,18 +6,28 @@ use crate::{
     traits::functor::{Map, Mapper},
 };
 
-pub trait Equal {}
+pub trait Equality<T> {
+    type Out;
+}
 
+impl<T, U> Equality<U> for T
+where
+    T: typenum::IsEqual<U>,
+    <T as typenum::IsEqual<U>>::Output: Bool,
+{
+    type Out = <<T as typenum::IsEqual<U>>::Output as Bool>::Out;
+}
+
+pub trait Equal {}
 pub trait IsEqual {
     type Out;
 }
 
 impl<T, U> IsEqual for (T, U)
 where
-    T: typenum::IsEqual<U>,
-    <T as typenum::IsEqual<U>>::Output: Bool,
+    T: Equality<U>,
 {
-    type Out = <<T as typenum::IsEqual<U>>::Output as Bool>::Out;
+    type Out = <T as Equality<U>>::Out;
 }
 
 pub trait IsNotEqual {

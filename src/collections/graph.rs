@@ -8,15 +8,15 @@ use crate::{
     traits::{
         fold::Foldable,
         functor::{Map, Mapper},
+        semigroup::Mappend,
     },
 };
 
 use super::{
-    Container,
-    list::{self, Empty, Filter, IntoOnes, Len, List, Ones, UntupleLeft, UntupleRight, ZipTuple},
+    list::{self, Filter, IntoOnes, Len, List, Ones, UntupleLeft, UntupleRight, ZipTuple},
     record::{self, Record},
     set::{self, Set},
-    tuple,
+    tuple, Container,
 };
 
 pub struct Graph<Nodes, IncomingEdges, OutgoingEdges>(
@@ -25,6 +25,151 @@ pub struct Graph<Nodes, IncomingEdges, OutgoingEdges>(
     PhantomData<OutgoingEdges>,
 );
 
+pub type Empty = Graph<record::Empty, record::Empty, record::Empty>;
+
+pub trait Identifiers {
+    type Out;
+}
+impl<Ids, Nodes, In, Out> Identifiers for Graph<Record<Ids, Nodes>, In, Out> {
+    type Out = Ids;
+}
+pub type NodeIds<T> = <T as Identifiers>::Out;
+
+pub trait ContainsId {
+    type Out;
+}
+impl<T, Nodes, In, Out> ContainsId for (Graph<Nodes, In, Out>, T)
+where
+    (Nodes, T): record::ContainsKey,
+{
+    type Out = <(Nodes, T) as record::ContainsKey>::Out;
+}
+
+impl<N1, I1, O1, N2, I2, O2> Mappend for (Graph<N1, I1, O1>, Graph<N2, I2, O2>)
+where
+    (Graph<N1, I1, O1>, Graph<N2, I2, O2>): Merge,
+{
+    type Out = <(Graph<N1, I1, O1>, Graph<N2, I2, O2>) as Merge>::Out;
+}
+
+pub trait Merge {
+    type Out;
+}
+impl<Nk1, Nv1, Nk2, Nv2, Ink1, Inv1, Ink2, Inv2, Outk1, Outv1, Outk2, Outv2> Merge
+    for (
+        Graph<Record<Set<Nk1>, Nv1>, Record<Set<Ink1>, Inv1>, Record<Set<Outk1>, Outv1>>,
+        Graph<Record<Set<Nk2>, Nv2>, Record<Set<Ink2>, Inv2>, Record<Set<Outk2>, Outv2>>,
+    )
+where
+    (Set<Nk1>, Set<Nk2>): set::Difference,
+    (Set<Nk2>, Set<Nk1>): set::Difference,
+    (Set<Nk1>, Set<Nk2>): set::Intersection,
+    (
+        Record<Set<Nk1>, Nv1>,
+        <(Set<Nk1>, Set<Nk2>) as set::Intersection>::Out,
+    ): record::RemoveKeys,
+    (
+        Record<Set<Nk2>, Nv2>,
+        <(Set<Nk1>, Set<Nk2>) as set::Intersection>::Out,
+    ): record::RemoveKeys,
+    (
+        Record<Set<Nk1>, Nv1>,
+        <(Set<Nk1>, Set<Nk2>) as set::Difference>::Out,
+    ): record::RemoveKeys,
+    (
+        Record<Set<Nk2>, Nv2>,
+        <(Set<Nk2>, Set<Nk1>) as set::Difference>::Out,
+    ): record::RemoveKeys,
+    <(
+        Record<Set<Nk1>, Nv1>,
+        <(Set<Nk1>, Set<Nk2>) as set::Difference>::Out,
+    ) as record::RemoveKeys>::Out: record::Fields,
+    <(
+        Record<Set<Nk1>, Nv1>,
+        <(Set<Nk1>, Set<Nk2>) as set::Intersection>::Out,
+    ) as record::RemoveKeys>::Out: record::Fields,
+    (Set<Ink1>, Set<Ink2>): set::Difference,
+    (Set<Ink2>, Set<Ink1>): set::Difference,
+    (Set<Ink1>, Set<Ink2>): set::Intersection,
+    (
+        Record<Set<Ink1>, Inv1>,
+        <(Set<Ink1>, Set<Ink2>) as set::Intersection>::Out,
+    ): record::RemoveKeys,
+    (
+        Record<Set<Ink2>, Inv2>,
+        <(Set<Ink1>, Set<Ink2>) as set::Intersection>::Out,
+    ): record::RemoveKeys,
+    (
+        Record<Set<Ink1>, Inv1>,
+        <(Set<Ink1>, Set<Ink2>) as set::Difference>::Out,
+    ): record::RemoveKeys,
+    (
+        Record<Set<Ink2>, Inv2>,
+        <(Set<Ink2>, Set<Ink1>) as set::Difference>::Out,
+    ): record::RemoveKeys,
+    <(
+        Record<Set<Ink1>, Inv1>,
+        <(Set<Ink1>, Set<Ink2>) as set::Difference>::Out,
+    ) as record::RemoveKeys>::Out: record::Fields,
+    <(
+        Record<Set<Ink1>, Inv1>,
+        <(Set<Ink1>, Set<Ink2>) as set::Intersection>::Out,
+    ) as record::RemoveKeys>::Out: record::Fields,
+    (Set<Outk1>, Set<Outk2>): set::Difference,
+    (Set<Outk2>, Set<Outk1>): set::Difference,
+    (Set<Outk1>, Set<Outk2>): set::Intersection,
+    (
+        Record<Set<Outk1>, Outv1>,
+        <(Set<Outk1>, Set<Outk2>) as set::Intersection>::Out,
+    ): record::RemoveKeys,
+    (
+        Record<Set<Outk2>, Outv2>,
+        <(Set<Outk1>, Set<Outk2>) as set::Intersection>::Out,
+    ): record::RemoveKeys,
+    (
+        Record<Set<Outk1>, Outv1>,
+        <(Set<Outk1>, Set<Outk2>) as set::Difference>::Out,
+    ): record::RemoveKeys,
+    (
+        Record<Set<Outk2>, Outv2>,
+        <(Set<Outk2>, Set<Outk1>) as set::Difference>::Out,
+    ): record::RemoveKeys,
+    <(
+        Record<Set<Outk1>, Outv1>,
+        <(Set<Outk1>, Set<Outk2>) as set::Difference>::Out,
+    ) as record::RemoveKeys>::Out: record::Fields,
+    <(
+        Record<Set<Outk1>, Outv1>,
+        <(Set<Outk1>, Set<Outk2>) as set::Intersection>::Out,
+    ) as record::RemoveKeys>::Out: record::Fields,
+    (Record<Set<Nk1>, Nv1>, Record<Set<Nk2>, Nv2>): record::Merge,
+    (Record<Set<Ink1>, Inv1>, Record<Set<Ink2>, Inv2>): record::Merge,
+    (Record<Set<Outk1>, Outv1>, Record<Set<Outk2>, Outv2>): record::Merge,
+{
+    type Out = Graph<
+        <(Record<Set<Nk1>, Nv1>, Record<Set<Nk2>, Nv2>) as record::Merge>::Out,
+        <(Record<Set<Ink1>, Inv1>, Record<Set<Ink2>, Inv2>) as record::Merge>::Out,
+        <(Record<Set<Outk1>, Outv1>, Record<Set<Outk2>, Outv2>) as record::Merge>::Out,
+    >;
+}
+pub type Combine<A, B> = <(A, B) as Merge>::Out;
+
+pub trait MapIds {
+    type Out;
+}
+impl<Nodes, In, Out, M> MapIds for (Graph<Nodes, In, Out>, M)
+where
+    (Nodes, M): record::MapKeys,
+    (In, M): record::MapKeys,
+    (Out, M): record::MapKeys,
+{
+    type Out = Graph<
+        <(Nodes, M) as record::MapKeys>::Out,
+        <(In, M) as record::MapKeys>::Out,
+        <(Out, M) as record::MapKeys>::Out,
+    >;
+}
+
 pub trait InsertNode {
     type Out;
 }
@@ -32,26 +177,16 @@ impl<Id, Data, IncomingEdges, OutgoingEdges, Nodes> InsertNode
     for (Graph<Nodes, IncomingEdges, OutgoingEdges>, (Id, Data))
 where
     (Nodes, (Id, Data)): record::InsertField,
-    (IncomingEdges, (Id, Set<Empty>)): record::InsertField,
-    (OutgoingEdges, (Id, Set<Empty>)): record::InsertField,
+    (IncomingEdges, (Id, Set<list::Empty>)): record::InsertField,
+    (OutgoingEdges, (Id, Set<list::Empty>)): record::InsertField,
 {
     type Out = Graph<
         <(Nodes, (Id, Data)) as record::InsertField>::Out,
-        <(IncomingEdges, (Id, Set<Empty>)) as record::InsertField>::Out,
-        <(OutgoingEdges, (Id, Set<Empty>)) as record::InsertField>::Out,
+        <(IncomingEdges, (Id, Set<list::Empty>)) as record::InsertField>::Out,
+        <(OutgoingEdges, (Id, Set<list::Empty>)) as record::InsertField>::Out,
     >;
 }
 pub type Insert<T, Node> = <(T, Node) as InsertNode>::Out;
-
-pub struct ExcludeIds<Id>(PhantomData<Id>);
-impl<K, T, Id> Mapper<(K, Set<T>)> for ExcludeIds<Id>
-where
-    (Set<T>, Id): set::Difference,
-{
-    type Out = (K, <(Set<T>, Id) as set::Difference>::Out);
-}
-pub type Excluded<T, U> =
-    <(T, ExcludeIds<U>) as Map<<T as Container>::Content, ExcludeIds<U>>>::Out;
 
 pub trait RemoveNode {
     type Out;
@@ -64,27 +199,37 @@ where
 }
 pub type Remove<T, Node> = <(T, Node) as RemoveNode>::Out;
 
+pub struct ExcludeIds<Ids>(PhantomData<Ids>);
+impl<K, T, Ids> Mapper<(K, Set<T>)> for ExcludeIds<Ids>
+where
+    (Set<T>, Ids): set::Difference,
+{
+    type Out = (K, <(Set<T>, Ids) as set::Difference>::Out);
+}
+pub type Excluded<T, U> =
+    <(T, ExcludeIds<U>) as Map<<T as Container>::Content, ExcludeIds<U>>>::Out;
+
 pub trait RemoveNodes {
     type Out;
 }
-impl<Id, Ids1, Ids2, In, Out, Nodes> RemoveNodes
+impl<Ids, Ids1, Ids2, In, Out, Nodes> RemoveNodes
     for (
         Graph<Nodes, Record<Set<Ids1>, In>, Record<Set<Ids2>, Out>>,
-        Id,
+        Ids,
     )
 where
-    (Nodes, Id): record::RemoveKeys,
+    (Nodes, Ids): record::RemoveKeys,
     In: Container,
-    (In, ExcludeIds<Id>): Map<<In as Container>::Content, ExcludeIds<Id>>,
-    (Record<Set<Ids1>, Excluded<In, Id>>, Id): record::RemoveKeys,
+    (In, ExcludeIds<Ids>): Map<<In as Container>::Content, ExcludeIds<Ids>>,
+    (Record<Set<Ids1>, Excluded<In, Ids>>, Ids): record::RemoveKeys,
     Out: Container,
-    (Out, ExcludeIds<Id>): Map<<Out as Container>::Content, ExcludeIds<Id>>,
-    (Record<Set<Ids2>, Excluded<Out, Id>>, Id): record::RemoveKeys,
+    (Out, ExcludeIds<Ids>): Map<<Out as Container>::Content, ExcludeIds<Ids>>,
+    (Record<Set<Ids2>, Excluded<Out, Ids>>, Ids): record::RemoveKeys,
 {
     type Out = Graph<
-        <(Nodes, Id) as record::RemoveKeys>::Out,
-        <(Record<Set<Ids1>, Excluded<In, Id>>, Id) as record::RemoveKeys>::Out,
-        <(Record<Set<Ids2>, Excluded<Out, Id>>, Id) as record::RemoveKeys>::Out,
+        <(Nodes, Ids) as record::RemoveKeys>::Out,
+        <(Record<Set<Ids1>, Excluded<In, Ids>>, Ids) as record::RemoveKeys>::Out,
+        <(Record<Set<Ids2>, Excluded<Out, Ids>>, Ids) as record::RemoveKeys>::Out,
     >;
 }
 
@@ -379,6 +524,15 @@ macro_rules! connect_graph {
     };
 }
 
+#[macro_export]
+macro_rules! merge_graphs {
+    [] => { $crate::collections::graph::Empty };
+    [$graph:ty$(,)?] => { $graph };
+    [$graph:ty,$($graphs:ty),+$(,)?] => {
+        $crate::collections::graph::Combine<$graph, $crate::merge_graphs![$($graphs),+]>
+    };
+}
+
 #[allow(unused)]
 #[cfg(test)]
 mod test {
@@ -506,7 +660,7 @@ mod test {
 
     #[test]
     fn data() {
-        type FoodChain = graph! {
+        type Chain = graph! {
             (TyranosaurusRex, u128): [Velociraptor, Iguanodon, Compsognathus, Pterodactyl, Oviraptor],
             (Velociraptor, u64): [Iguanodon, Compsognathus, Oviraptor, Pterodactyl],
             (Pterodactyl, usize): [Compsognathus],
@@ -514,6 +668,14 @@ mod test {
             (Iguanodon, u16): [],
             (Compsognathus, u8): []
         };
+        type Moar = graph! {
+            (Stegosaurus, i32): [],
+            (Pachycephalosaurus, i16): []
+        };
+        type Moaaar = graph! {
+            (Triceratops, i32): []
+        };
+        type FoodChain = crate::merge_graphs![Chain, Moar, Moaaar];
 
         assert_type_eq!(Get<FoodChain, TyranosaurusRex>, u128);
         assert_type_eq!(Get<FoodChain, Velociraptor>, u64);
@@ -521,6 +683,9 @@ mod test {
         assert_type_eq!(Get<FoodChain, Oviraptor>, u32);
         assert_type_eq!(Get<FoodChain, Iguanodon>, u16);
         assert_type_eq!(Get<FoodChain, Compsognathus>, u8);
+        assert_type_eq!(Get<FoodChain, Stegosaurus>, i32);
+        assert_type_eq!(Get<FoodChain, Pachycephalosaurus>, i16);
+        assert_type_eq!(Get<FoodChain, Triceratops>, i32);
     }
 
     #[test]
@@ -563,5 +728,70 @@ mod test {
             ],
             Topo<Transposed>
         );
+    }
+
+    #[test]
+    fn map() {
+        use crate::cmp::IsEqual;
+
+        pub struct Wrapper<T>(PhantomData<T>);
+        impl<T, U> IsEqual for (Wrapper<T>, Wrapper<U>)
+        where
+            (T, U): IsEqual,
+        {
+            type Out = <(T, U) as IsEqual>::Out;
+        }
+
+        pub struct Wrap;
+        impl<T> Mapper<T> for Wrap {
+            type Out = Wrapper<T>;
+        }
+
+        type FoodChain = graph! {
+            (Oviraptor, u32): [Compsognathus],
+            (Iguanodon, u16): [],
+            (Compsognathus, u8): []
+        };
+        type MappedChain = <(FoodChain, Wrap) as MapIds>::Out;
+
+        assert_type_eq!(<MappedChain as Size>::Out, U3);
+        assert_type_eq!(Get<MappedChain, Wrapper<Oviraptor>>, u32);
+        assert_type_eq!(Get<MappedChain, Wrapper<Iguanodon>>, u16);
+        assert_type_eq!(Get<MappedChain, Wrapper<Compsognathus>>, u8);
+    }
+
+    #[test]
+    fn merge() {
+        type DinoGraph = graph! {
+            (TyranosaurusRex, ()): [Iguanodon],
+            (Iguanodon, ()): []
+        };
+        type Moar = graph! {
+            (TyranosaurusRex, ()): [Pachycephalosaurus],
+            (Pachycephalosaurus, ()): []
+        };
+        type Moaaar = graph! {
+            (TyranosaurusRex, ()): [Compsognathus],
+            (Compsognathus, ()): []
+        };
+        type Merged = crate::merge_graphs![DinoGraph, Moar, Moaaar];
+        assert_type_eq!(<Merged as Size>::Out, U4);
+        assert_type_eq!(Outgoing<Merged, TyranosaurusRex>, set![Compsognathus, Pachycephalosaurus, Iguanodon]);
+        assert_type_eq!(Outgoing<Merged, Iguanodon>, set![]);
+        assert_type_eq!(Outgoing<Merged, Pachycephalosaurus>, set![]);
+        assert_type_eq!(Outgoing<Merged, Compsognathus>, set![]);
+    }
+
+    #[test]
+    fn cycles() {
+        type Dinos = graph! {
+            (Iguanodon, ()): [Compsognathus],
+            (Compsognathus, ()): [Pterodactyl],
+            (Pterodactyl, ()): [Iguanodon]
+        };
+
+        assert_type_eq!(Outgoing<Dinos, Iguanodon>, set![Compsognathus]);
+        assert_type_eq!(Outgoing<Dinos, Compsognathus>, set![Pterodactyl]);
+        assert_type_eq!(Outgoing<Dinos, Pterodactyl>, set![Iguanodon]);
     }
 }

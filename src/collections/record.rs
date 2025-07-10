@@ -12,7 +12,7 @@ use crate::{
 
 use super::{
     Container,
-    list::{self, Any, Filter, List},
+    list::{self, Any, Filter, List, UntupleLeft, UntupleRight, ZipTuple},
     set::{self, Set},
     tuple,
 };
@@ -30,6 +30,207 @@ where
     <(T, IsEqualTo<K>) as Map<<T as Container>::Content, IsEqualTo<K>>>::Out: Foldable<Either>,
 {
     type Out = Any<EqualTo<T, K>>;
+}
+
+pub trait MapKeys {
+    type Out;
+}
+impl<T, U, M> MapKeys for (Record<Set<T>, U>, M)
+where
+    T: Container,
+    U: Container,
+    (Set<T>, M): Map<<T as Container>::Content, M>,
+    (U, tuple::Left): Map<<U as Container>::Content, tuple::Left>,
+    (U, tuple::Right): Map<<U as Container>::Content, tuple::Right>,
+    UntupleRight<U>: Container,
+    UntupleLeft<U>: Container,
+    (UntupleLeft<U>, M): Map<<UntupleLeft<U> as Container>::Content, M>,
+    (
+        <(UntupleLeft<U>, M) as Map<<UntupleLeft<U> as Container>::Content, M>>::Out,
+        UntupleRight<U>,
+    ): ZipTuple,
+{
+    type Out = Record<
+        <(Set<T>, M) as Map<<T as Container>::Content, M>>::Out,
+        <(
+            <(UntupleLeft<U>, M) as Map<<UntupleLeft<U> as Container>::Content, M>>::Out,
+            UntupleRight<U>,
+        ) as ZipTuple>::Out,
+    >;
+}
+
+pub trait Fields {
+    type Out;
+}
+impl<K, F> Fields for Record<Set<K>, F> {
+    type Out = F;
+}
+
+pub struct WithMappendFrom<R>(PhantomData<R>);
+impl<K, V, R> Mapper<(K, V)> for WithMappendFrom<R>
+where
+    (R, K): ContainsKey,
+    (R, K): GetEntry,
+    (V, <(R, K) as GetEntry>::Out): Mappend,
+{
+    type Out = (K, <(V, <(R, K) as GetEntry>::Out) as Mappend>::Out);
+}
+
+impl<T, U> Mappend for (T, U)
+where
+    (T, U): Merge,
+{
+    type Out = <(T, U) as Merge>::Out;
+}
+
+pub trait Merge {
+    type Out;
+}
+impl<K1, F1, K2, F2> Merge for (Record<Set<K1>, F1>, Record<Set<K2>, F2>)
+where
+    (Set<K1>, Set<K2>): set::Difference,
+    (Set<K2>, Set<K1>): set::Difference,
+    (Set<K1>, Set<K2>): set::Intersection,
+    (Set<K1>, Set<K2>): set::Union,
+    (
+        Record<Set<K1>, F1>,
+        <(Set<K1>, Set<K2>) as set::Intersection>::Out,
+    ): RemoveKeys,
+    (
+        Record<Set<K2>, F2>,
+        <(Set<K1>, Set<K2>) as set::Intersection>::Out,
+    ): RemoveKeys,
+    (
+        Record<Set<K1>, F1>,
+        <(Set<K1>, Set<K2>) as set::Difference>::Out,
+    ): RemoveKeys,
+    (
+        Record<Set<K2>, F2>,
+        <(Set<K2>, Set<K1>) as set::Difference>::Out,
+    ): RemoveKeys,
+    <(
+        Record<Set<K1>, F1>,
+        <(Set<K1>, Set<K2>) as set::Difference>::Out,
+    ) as RemoveKeys>::Out: Fields,
+    <(
+        Record<Set<K1>, F1>,
+        <(Set<K1>, Set<K2>) as set::Intersection>::Out,
+    ) as RemoveKeys>::Out: Fields,
+    <(
+        Record<Set<K2>, F2>,
+        <(Set<K1>, Set<K2>) as set::Intersection>::Out,
+    ) as RemoveKeys>::Out: Fields,
+    <<(
+        Record<Set<K1>, F1>,
+        <(Set<K1>, Set<K2>) as set::Difference>::Out,
+    ) as RemoveKeys>::Out as Fields>::Out: Container,
+    (
+        <<(
+            Record<Set<K1>, F1>,
+            <(Set<K1>, Set<K2>) as set::Difference>::Out,
+        ) as RemoveKeys>::Out as Fields>::Out,
+        WithMappendFrom<
+            <(
+                Record<Set<K2>, F2>,
+                <(Set<K2>, Set<K1>) as set::Difference>::Out,
+            ) as RemoveKeys>::Out,
+        >,
+    ): Map<
+            <<<(
+                Record<Set<K1>, F1>,
+                <(Set<K1>, Set<K2>) as set::Difference>::Out,
+            ) as RemoveKeys>::Out as Fields>::Out as Container>::Content,
+            WithMappendFrom<
+                <(
+                    Record<Set<K2>, F2>,
+                    <(Set<K2>, Set<K1>) as set::Difference>::Out,
+                ) as RemoveKeys>::Out,
+            >,
+        >,
+    (
+        <<(
+            Record<Set<K1>, F1>,
+            <(Set<K1>, Set<K2>) as set::Intersection>::Out,
+        ) as RemoveKeys>::Out as Fields>::Out,
+        <<(
+            Record<Set<K2>, F2>,
+            <(Set<K1>, Set<K2>) as set::Intersection>::Out,
+        ) as RemoveKeys>::Out as Fields>::Out,
+    ): Mappend,
+    (
+        <(
+            <<(
+                Record<Set<K1>, F1>,
+                <(Set<K1>, Set<K2>) as set::Intersection>::Out,
+            ) as RemoveKeys>::Out as Fields>::Out,
+            <<(
+                Record<Set<K2>, F2>,
+                <(Set<K1>, Set<K2>) as set::Intersection>::Out,
+            ) as RemoveKeys>::Out as Fields>::Out,
+        ) as Mappend>::Out,
+        <(
+            <<(
+                Record<Set<K1>, F1>,
+                <(Set<K1>, Set<K2>) as set::Difference>::Out,
+            ) as RemoveKeys>::Out as Fields>::Out,
+            WithMappendFrom<
+                <(
+                    Record<Set<K2>, F2>,
+                    <(Set<K2>, Set<K1>) as set::Difference>::Out,
+                ) as RemoveKeys>::Out,
+            >,
+        ) as Map<
+            <<<(
+                Record<Set<K1>, F1>,
+                <(Set<K1>, Set<K2>) as set::Difference>::Out,
+            ) as RemoveKeys>::Out as Fields>::Out as Container>::Content,
+            WithMappendFrom<
+                <(
+                    Record<Set<K2>, F2>,
+                    <(Set<K2>, Set<K1>) as set::Difference>::Out,
+                ) as RemoveKeys>::Out,
+            >,
+        >>::Out,
+    ): Mappend,
+{
+    type Out = Record<
+        <(Set<K1>, Set<K2>) as set::Union>::Out,
+        <(
+            <(
+                <<(
+                    Record<Set<K1>, F1>,
+                    <(Set<K1>, Set<K2>) as set::Intersection>::Out,
+                ) as RemoveKeys>::Out as Fields>::Out,
+                <<(
+                    Record<Set<K2>, F2>,
+                    <(Set<K1>, Set<K2>) as set::Intersection>::Out,
+                ) as RemoveKeys>::Out as Fields>::Out,
+            ) as Mappend>::Out,
+            <(
+                <<(
+                    Record<Set<K1>, F1>,
+                    <(Set<K1>, Set<K2>) as set::Difference>::Out,
+                ) as RemoveKeys>::Out as Fields>::Out,
+                WithMappendFrom<
+                    <(
+                        Record<Set<K2>, F2>,
+                        <(Set<K2>, Set<K1>) as set::Difference>::Out,
+                    ) as RemoveKeys>::Out,
+                >,
+            ) as Map<
+                <<<(
+                    Record<Set<K1>, F1>,
+                    <(Set<K1>, Set<K2>) as set::Difference>::Out,
+                ) as RemoveKeys>::Out as Fields>::Out as Container>::Content,
+                WithMappendFrom<
+                    <(
+                        Record<Set<K2>, F2>,
+                        <(Set<K2>, Set<K1>) as set::Difference>::Out,
+                    ) as RemoveKeys>::Out,
+                >,
+            >>::Out,
+        ) as Mappend>::Out,
+    >;
 }
 
 pub trait InsertField {
@@ -250,5 +451,75 @@ mod test {
         type TRex = set![TyranosaurusRex];
         type Cleared = <(Removed, TRex) as RemoveKeys>::Out;
         assert_type_eq!(Cleared, Empty);
+    }
+
+    #[test]
+    fn map() {
+        use crate::cmp::IsEqual;
+
+        pub struct Wrapper<T>(PhantomData<T>);
+        impl<T, U> IsEqual for (Wrapper<T>, Wrapper<U>)
+        where
+            (T, U): IsEqual,
+        {
+            type Out = <(T, U) as IsEqual>::Out;
+        }
+
+        pub struct Wrap;
+        impl<T> Mapper<T> for Wrap {
+            type Out = Wrapper<T>;
+        }
+
+        type DinosaurSizes = record! {
+            Oviraptor: Small,
+            Velociraptor: Medium,
+            TyranosaurusRex: Large
+        };
+        type MappedDinos = <(DinosaurSizes, Wrap) as MapKeys>::Out;
+
+        assert_type_eq!(
+            record! {
+                Wrapper<Oviraptor>: Small,
+                Wrapper<Velociraptor>: Medium,
+                Wrapper<TyranosaurusRex>: Large
+            },
+            MappedDinos
+        );
+    }
+
+    #[test]
+    fn merge() {
+        use crate::list;
+        use crate::num::consts::*;
+
+        type DinosaurNumsA = record! {
+            Oviraptor: list![U1, U2, U3],
+            Velociraptor: list![U1, U2, U3],
+            TyranosaurusRex: list![U1, U2, U3]
+        };
+        type DinosaurNumsB = record! {
+            Oviraptor: list![U4, U5, U6],
+            Velociraptor: list![U4, U5, U6],
+            Compsognathus: list![U1]
+        };
+        type Merged = <(DinosaurNumsA, DinosaurNumsB) as Merge>::Out;
+
+        assert_type_eq!(<Merged as Size>::Out, U4);
+        assert_type_eq!(
+            Get<Merged, Oviraptor>,
+            list![U1, U2, U3, U4, U5, U6]
+        );
+        assert_type_eq!(
+            Get<Merged, Velociraptor>,
+            list![U1, U2, U3, U4, U5, U6]
+        );
+        assert_type_eq!(
+            Get<Merged, TyranosaurusRex>,
+            list![U1, U2, U3]
+        );
+        assert_type_eq!(
+            Get<Merged, Compsognathus>,
+            list![U1]
+        );
     }
 }

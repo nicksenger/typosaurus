@@ -1,8 +1,12 @@
 use typenum::{Bit, UInt, UTerm, Unsigned};
 
-use crate::traits::functor::Mapper;
+use crate::traits::{functor::Mapper, semigroup::Mappend};
 
 use super::list::List as L;
+
+impl Mappend for ((), ()) {
+    type Out = ();
+}
 
 pub struct Left;
 impl<T, U> Mapper<(T, U)> for Left {

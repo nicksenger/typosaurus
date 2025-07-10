@@ -36,6 +36,14 @@ impl<T, U> IsEmpty for Set<List<(T, U)>> {
     type Out = False;
 }
 
+impl<T, M> Map<<T as Container>::Content, M> for (Set<T>, M)
+where
+    T: Container,
+    (T, M): Map<<T as Container>::Content, M>,
+{
+    type Out = Set<<(T, M) as Map<<T as Container>::Content, M>>::Out>;
+}
+
 pub trait Contains {
     type Out;
 }
@@ -106,6 +114,13 @@ where
     WithContained<T, Set<U>>: Foldable<Filter>,
 {
     type Out = Set<<WithContained<T, Set<U>> as Foldable<Filter>>::Out>;
+}
+
+impl<T, U> Mappend for (Set<T>, Set<U>)
+where
+    (Set<T>, Set<U>): Union,
+{
+    type Out = <(Set<T>, Set<U>) as Union>::Out;
 }
 
 pub trait Union {
@@ -299,5 +314,31 @@ mod test {
 
         type Smaller = <(Dinosaurs, Oviraptor) as Remove>::Out;
         assert_type_eq!(<Smaller as Size>::Out, U2);
+    }
+
+    #[test]
+    fn map() {
+        pub struct Wrapper<T>(PhantomData<T>);
+        impl<T, U> IsEqual for (Wrapper<T>, Wrapper<U>)
+        where
+            (T, U): IsEqual,
+        {
+            type Out = <(T, U) as IsEqual>::Out;
+        }
+
+        pub struct Wrap;
+        impl<T> Mapper<T> for Wrap {
+            type Out = Wrapper<T>;
+        }
+        type Dinosaurs = set![Oviraptor, TyranosaurusRex, Velociraptor];
+        type MappedDinos = <(Dinosaurs, Wrap) as Map<<Dinosaurs as Container>::Content, Wrap>>::Out;
+        assert_type_eq!(
+            MappedDinos,
+            set![
+                Wrapper<Oviraptor>,
+                Wrapper<TyranosaurusRex>,
+                Wrapper<Velociraptor>
+            ]
+        );
     }
 }
