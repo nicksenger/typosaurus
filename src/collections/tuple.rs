@@ -8,6 +8,20 @@ impl Mappend for ((), ()) {
     type Out = ();
 }
 
+pub trait TupleLeft {
+    type Out;
+}
+impl<T, U> TupleLeft for (T, U) {
+    type Out = T;
+}
+
+pub trait TupleRight {
+    type Out;
+}
+impl<T, U> TupleRight for (T, U) {
+    type Out = U;
+}
+
 pub struct Left;
 impl<T, U> Mapper<(T, U)> for Left {
     type Out = T;

@@ -1,7 +1,7 @@
 use core::marker::PhantomData;
 
 use crate::{
-    bool::{False, Falsy, Not, True, Truthy, monoid::Either},
+    bool::{monoid::Either, False, Falsy, Not, True, Truthy},
     cmp::{EqualTo, IsEqual, IsEqualTo},
     num::Addition,
     traits::{
@@ -12,12 +12,22 @@ use crate::{
 };
 
 use super::{
+    list::{self, Any, Exclude, Filter, Interleave, IntoOnes, List, Ones, WithNotEqualTo},
     Container,
-    list::{self, Any, Exclude, Filter, IntoOnes, List, Ones, WithNotEqualTo},
 };
 
 pub struct Set<T>(PhantomData<T>);
 pub type Empty = Set<list::Empty>;
+
+pub trait IntoList {
+    type Out;
+}
+impl IntoList for Empty {
+    type Out = list::Empty;
+}
+impl<T, U> IntoList for Set<List<(T, U)>> {
+    type Out = List<(T, U)>;
+}
 
 impl<T> Container for Set<T>
 where
@@ -63,9 +73,9 @@ impl<T, U> Insert for (Set<T>, U)
 where
     (Set<T>, U): Contains,
     <(Set<T>, U) as Contains>::Out: Falsy,
-    (T, List<(U, list::Empty)>): Mappend,
+    (T, List<(U, list::Empty)>): Interleave,
 {
-    type Out = Set<<(T, List<(U, list::Empty)>) as Mappend>::Out>;
+    type Out = Set<<(T, List<(U, list::Empty)>) as Interleave>::Out>;
 }
 
 pub trait Remove {
@@ -131,9 +141,10 @@ where
     T: Container,
     (T, WithNotContainedIn<Set<U>>): Map<<T as Container>::Content, WithNotContainedIn<Set<U>>>,
     WithNotContained<T, Set<U>>: Foldable<Filter>,
-    (<WithNotContained<T, Set<U>> as Foldable<Filter>>::Out, U): Mappend,
+    (<WithNotContained<T, Set<U>> as Foldable<Filter>>::Out, U): Interleave,
 {
-    type Out = Set<<(<WithNotContained<T, Set<U>> as Foldable<Filter>>::Out, U) as Mappend>::Out>;
+    type Out =
+        Set<<(<WithNotContained<T, Set<U>> as Foldable<Filter>>::Out, U) as Interleave>::Out>;
 }
 
 pub trait Difference {
@@ -170,10 +181,10 @@ where
 
 #[macro_export]
 macro_rules! set {
-    [] => {
+    [$(,)?] => {
         $crate::collections::set::Set<$crate::collections::list::Empty>
     };
-    [$t:ty] => {
+    [$t:ty$(,)?] => {
         $crate::collections::set::Set<$crate::list![$t]>
     };
     [$t:ty,$($ts:ty),+] => {
@@ -183,26 +194,40 @@ macro_rules! set {
 
 #[macro_export]
 macro_rules! elements {
-    [$t:ty] => {
-        impl $crate::cmp::IsEqual for ($t, $t) {
+    [$(,)?] => {};
+    [$t:ty$(,)?] => {
+        impl $crate::cmp::Equality<$t> for $t {
             type Out = $crate::bool::True;
         }
     };
-    [$t1:ty,$($ts:ty),+] => {
-        impl $crate::cmp::IsEqual for ($t1, $t1) {
+    [$t1:ty,$($ts:ty),+$(,)?] => {
+        impl $crate::cmp::Equality<$t1> for $t1 {
             type Out = $crate::bool::True;
         }
 
         $(
-            impl $crate::cmp::IsEqual for ($t1, $ts) {
+            impl $crate::cmp::Equality<$ts> for $t1 {
                 type Out = $crate::bool::False;
             }
-            impl $crate::cmp::IsEqual for ($ts, $t1) {
+            impl $crate::cmp::Equality<$t1> for $ts {
                 type Out = $crate::bool::False;
             }
         )+
 
         $crate::elements![$($ts),+];
+    };
+}
+
+#[macro_export]
+macro_rules! merge_sets {
+    [$(,)?] => {
+      $crate::collections::set::Empty
+    };
+    [$s:ty$(,)?] => {
+        $s
+    };
+    [$s:ty,$($ss:ty),+$(,)?] => {
+        <($s, $crate::merge_sets![$($ss),+]) as $crate::collections::set::Union>::Out
     };
 }
 

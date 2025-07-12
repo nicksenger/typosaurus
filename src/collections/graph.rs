@@ -14,8 +14,9 @@ use crate::{
 
 use super::{
     list::{self, Filter, IntoOnes, Len, List, Ones, UntupleLeft, UntupleRight, ZipTuple},
+    maybe::{self, Just, Nothing},
     record::{self, Record},
-    set::{self, Set},
+    set::{self, Contains, Set},
     tuple, Container,
 };
 
@@ -34,6 +35,30 @@ impl<Ids, Nodes, In, Out> Identifiers for Graph<Record<Ids, Nodes>, In, Out> {
     type Out = Ids;
 }
 pub type NodeIds<T> = <T as Identifiers>::Out;
+
+pub struct WithKeys;
+impl<K, V> Mapper<(K, Set<V>)> for WithKeys
+where
+    V: Container,
+    (V, list::With<K>): Map<<V as Container>::Content, list::With<K>>,
+{
+    type Out = <(V, list::With<K>) as Map<<V as Container>::Content, list::With<K>>>::Out;
+}
+
+pub trait OutgoingEdgeList {
+    type Out;
+}
+impl<N, I, Ids, Out> OutgoingEdgeList for Graph<N, I, Record<Ids, Out>>
+where
+    Out: Container,
+    (Out, WithKeys): Map<<Out as Container>::Content, WithKeys>,
+    <(Out, WithKeys) as Map<<Out as Container>::Content, WithKeys>>::Out: Foldable<list::Concat>,
+{
+    type Out = <<(Out, WithKeys) as Map<<Out as Container>::Content, WithKeys>>::Out as Foldable<
+        list::Concat,
+    >>::Out;
+}
+pub type Edges<G> = <G as OutgoingEdgeList>::Out;
 
 pub trait ContainsId {
     type Out;
@@ -188,6 +213,98 @@ where
 }
 pub type Insert<T, Node> = <(T, Node) as InsertNode>::Out;
 
+pub trait MaybeInsertNode {
+    type Out;
+}
+impl<Data, I, O, N> MaybeInsertNode for (Graph<N, I, O>, (Nothing, Data)) {
+    type Out = Graph<N, I, O>;
+}
+impl<Id, Data, I, O, N> MaybeInsertNode for (Graph<N, I, O>, (Just<Id>, Data))
+where
+    (Graph<N, I, O>, (Id, Data)): InsertNode,
+{
+    type Out = <(Graph<N, I, O>, (Id, Data)) as InsertNode>::Out;
+}
+impl<I, O, N> MaybeInsertNode for (Graph<N, I, O>, Nothing) {
+    type Out = Graph<N, I, O>;
+}
+impl<Id, Data, I, O, N> MaybeInsertNode for (Graph<N, I, O>, Just<(Id, Data)>)
+where
+    (Graph<N, I, O>, (Id, Data)): InsertNode,
+{
+    type Out = <(Graph<N, I, O>, (Id, Data)) as InsertNode>::Out;
+}
+
+pub trait MaybeInsertFiltered {
+    type Out;
+}
+impl<Data, I, O, Ids, N> MaybeInsertFiltered for (Graph<Record<Ids, N>, I, O>, (Nothing, Data)) {
+    type Out = Graph<Record<Ids, N>, I, O>;
+}
+impl<I, O, Ids, N> MaybeInsertFiltered for (Graph<Record<Ids, N>, I, O>, Nothing) {
+    type Out = Graph<Record<Ids, N>, I, O>;
+}
+impl<T, Data, I, O, Ids, N> MaybeInsertFiltered for (Graph<Record<Ids, N>, I, O>, (Just<T>, Data))
+where
+    (Ids, T): Contains,
+    (Just<T>, set::WithNotContainedIn<Ids>): Map<T, set::WithNotContainedIn<Ids>>,
+    <(Just<T>, set::WithNotContainedIn<Ids>) as Map<T, set::WithNotContainedIn<Ids>>>::Out:
+        Foldable<maybe::Filter>,
+    (
+        Graph<Record<Ids, N>, I, O>,
+        (
+            <<(Just<T>, set::WithNotContainedIn<Ids>) as Map<T, set::WithNotContainedIn<Ids>>>::Out as Foldable<maybe::Filter>>::Out,
+            Data
+        )
+    ): MaybeInsertNode,
+{
+    type Out = <(
+        Graph<Record<Ids, N>, I, O>,
+        (
+            <<(Just<T>, set::WithNotContainedIn<Ids>) as Map<T, set::WithNotContainedIn<Ids>>>::Out as Foldable<maybe::Filter>>::Out,
+            Data
+        )
+    ) as MaybeInsertNode>::Out;
+}
+impl<T, Data, I, O, Ids, N> MaybeInsertFiltered for (Graph<Record<Ids, N>, I, O>, Just<(T, Data)>)
+where
+    (Ids, T): Contains,
+    (Just<T>, set::WithNotContainedIn<Ids>): Map<T, set::WithNotContainedIn<Ids>>,
+    <(Just<T>, set::WithNotContainedIn<Ids>) as Map<T, set::WithNotContainedIn<Ids>>>::Out:
+        Foldable<maybe::Filter>,
+        (
+            Graph<Record<Ids, N>, I, O>,
+            (
+                <<(Just<T>, set::WithNotContainedIn<Ids>) as Map<T, set::WithNotContainedIn<Ids>>>::Out as Foldable<maybe::Filter>>::Out,
+                Data
+            )
+        ): MaybeInsertNode,
+{
+    type Out = <(
+        Graph<Record<Ids, N>, I, O>,
+        (
+            <<(Just<T>, set::WithNotContainedIn<Ids>) as Map<T, set::WithNotContainedIn<Ids>>>::Out as Foldable<maybe::Filter>>::Out,
+            Data
+        )
+    ) as MaybeInsertNode>::Out;
+}
+pub type MaybeInsert<T, Node> = <(T, Node) as MaybeInsertFiltered>::Out;
+
+pub trait MaybeInsertNodes {
+    type Out;
+}
+impl<N, I, O> MaybeInsertNodes for (Graph<N, I, O>, list::Empty) {
+    type Out = Graph<N, I, O>;
+}
+impl<T, U, N, I, O> MaybeInsertNodes for (Graph<N, I, O>, list::List<(T, U)>)
+where
+    (Graph<N, I, O>, T): MaybeInsertNode,
+    (<(Graph<N, I, O>, T) as MaybeInsertNode>::Out, U): MaybeInsertNodes,
+{
+    type Out = <(<(Graph<N, I, O>, T) as MaybeInsertNode>::Out, U) as MaybeInsertNodes>::Out;
+}
+pub type MultiInsert<Graph, Nodes> = <(Graph, Nodes) as MaybeInsertNodes>::Out;
+
 pub trait RemoveNode {
     type Out;
 }
@@ -232,6 +349,80 @@ where
         <(Record<Set<Ids2>, Excluded<Out, Ids>>, Ids) as record::RemoveKeys>::Out,
     >;
 }
+
+pub trait MaybeConnectNodes {
+    type Out;
+}
+impl<IncomingEdges, OutgoingEdges, Nodes> MaybeConnectNodes
+    for (
+        Graph<Nodes, IncomingEdges, OutgoingEdges>,
+        (Nothing, Nothing),
+    )
+{
+    type Out = Graph<Nodes, IncomingEdges, OutgoingEdges>;
+}
+impl<FromId, IncomingEdges, OutgoingEdges, Nodes> MaybeConnectNodes
+    for (
+        Graph<Nodes, IncomingEdges, OutgoingEdges>,
+        (Just<FromId>, Nothing),
+    )
+{
+    type Out = Graph<Nodes, IncomingEdges, OutgoingEdges>;
+}
+impl<ToId, IncomingEdges, OutgoingEdges, Nodes> MaybeConnectNodes
+    for (
+        Graph<Nodes, IncomingEdges, OutgoingEdges>,
+        (Nothing, Just<ToId>),
+    )
+{
+    type Out = Graph<Nodes, IncomingEdges, OutgoingEdges>;
+}
+impl<FromId, ToId, IncomingEdges, OutgoingEdges, Nodes> MaybeConnectNodes
+    for (
+        Graph<Nodes, IncomingEdges, OutgoingEdges>,
+        (Just<FromId>, Just<ToId>),
+    )
+where
+    (OutgoingEdges, FromId): record::GetEntry,
+    (<(OutgoingEdges, FromId) as record::GetEntry>::Out, ToId): set::Insert,
+    (OutgoingEdges, FromId): record::RemoveEntry,
+    (
+        <(OutgoingEdges, FromId) as record::RemoveEntry>::Out,
+        (
+            FromId,
+            <(<(OutgoingEdges, FromId) as record::GetEntry>::Out, ToId) as set::Insert>::Out,
+        ),
+    ): record::InsertField,
+    (IncomingEdges, ToId): record::GetEntry,
+    (<(IncomingEdges, ToId) as record::GetEntry>::Out, FromId): set::Insert,
+    (IncomingEdges, ToId): record::RemoveEntry,
+    (
+        <(IncomingEdges, ToId) as record::RemoveEntry>::Out,
+        (
+            ToId,
+            <(<(IncomingEdges, ToId) as record::GetEntry>::Out, FromId) as set::Insert>::Out,
+        ),
+    ): record::InsertField,
+    (Graph<Nodes, IncomingEdges, OutgoingEdges>, (FromId, ToId)): ConnectNodes,
+{
+    type Out = <(Graph<Nodes, IncomingEdges, OutgoingEdges>, (FromId, ToId)) as ConnectNodes>::Out;
+}
+pub type MaybeConnect<Graph, From, To> = <(Graph, (From, To)) as MaybeConnectNodes>::Out;
+
+pub trait MultiConnectNodes {
+    type Out;
+}
+impl<N, I, O> MultiConnectNodes for (Graph<N, I, O>, list::Empty) {
+    type Out = Graph<N, I, O>;
+}
+impl<T, U, N, I, O> MultiConnectNodes for (Graph<N, I, O>, List<(T, U)>)
+where
+    (Graph<N, I, O>, T): MaybeConnectNodes,
+    (<(Graph<N, I, O>, T) as MaybeConnectNodes>::Out, U): MultiConnectNodes,
+{
+    type Out = <(<(Graph<N, I, O>, T) as MaybeConnectNodes>::Out, U) as MultiConnectNodes>::Out;
+}
+pub type MultiConnect<Graph, Nodes> = <(Graph, Nodes) as MultiConnectNodes>::Out;
 
 pub trait ConnectNodes {
     type Out;
@@ -495,6 +686,24 @@ where
 }
 pub type Topo<G> = <G as Topological>::Out;
 
+pub trait IdList {
+    type Out;
+}
+impl<Is, N, I, O> IdList for Graph<Record<Set<Is>, N>, I, O> {
+    type Out = Is;
+}
+
+pub trait ValueList {
+    type Out;
+}
+impl<Is, N, I, O> ValueList for Graph<Record<Set<Is>, N>, I, O>
+where
+    N: Container,
+    (N, tuple::Right): Map<<N as Container>::Content, tuple::Right>,
+{
+    type Out = list::UntupleRight<N>;
+}
+
 #[macro_export]
 macro_rules! graph {
     {} => {
@@ -510,17 +719,39 @@ macro_rules! graph {
 
 #[macro_export]
 macro_rules! connect_graph {
-    ($graph:ty,$id:ty:[]) => {
+    ($graph:ty$(,)?) => {
+        $graph
+    };
+    ($graph:ty,$id:ty:[$(,)?]) => {
         $graph
     };
     ($graph:ty,$from:ty:[$to:ty]) => {
         <($graph, ($from, $to)) as $crate::collections::graph::ConnectNodes>::Out
     };
-    ($graph:ty,$id:ty:[$to:ty,$($edges:ty),+]) => {
+    ($graph:ty,$id:ty:[$to:ty,$($edges:ty),*]) => {
         $crate::connect_graph!($crate::connect_graph!($graph, $id: [$to]),$id:[$($edges),*])
     };
     ($graph:ty,$id:ty:[$($edges:ty),*]$($toks:tt)*) => {
         $crate::connect_graph!($crate::connect_graph!($graph,$id:[$($edges),*])$($toks)*)
+    };
+}
+
+#[macro_export]
+macro_rules! maybe_connect_graph {
+    ($graph:ty$(,)?) => {
+        $graph
+    };
+    ($graph:ty,$id:ty:[$(,)?]) => {
+        $graph
+    };
+    ($graph:ty,$from:ty:[$to:ty]) => {
+        <($graph, ($from, $to)) as $crate::collections::graph::MaybeConnectNodes>::Out
+    };
+    ($graph:ty,$id:ty:[$to:ty,$($edges:ty),*]) => {
+        $crate::maybe_connect_graph!($crate::maybe_connect_graph!($graph, $id: [$to]),$id:[$($edges),*])
+    };
+    ($graph:ty,$id:ty:[$($edges:ty),*]$($toks:tt)*) => {
+        $crate::maybe_connect_graph!($crate::maybe_connect_graph!($graph,$id:[$($edges),*])$($toks)*)
     };
 }
 
@@ -533,12 +764,35 @@ macro_rules! merge_graphs {
     };
 }
 
+#[macro_export]
+macro_rules! insert_nodes {
+    [$graph:ty$(,)?] => { $graph };
+    [$graph:ty,($id:ty,$data:ty)$(,)?] => {
+        $crate::collections::graph::Insert<$graph, ($id,$data)>
+    };
+    [$graph:ty,($id:ty,$data:ty),$(($ids:ty,$datas:ty)),*$(,)?] => {
+        $crate::insert_nodes![$crate::collections::graph::Insert<$graph, ($id,$data)>, $(($ids,$datas)),*]
+    };
+}
+
+#[macro_export]
+macro_rules! maybe_insert_nodes {
+    [$graph:ty$(,)?] => { $graph };
+    [$graph:ty,($id:ty,$data:ty)$(,)?] => {
+        $crate::collections::graph::MaybeInsert<$graph, ($id,$data)>
+    };
+    [$graph:ty,($id:ty,$data:ty),$(($ids:ty,$datas:ty)),*$(,)?] => {
+        $crate::maybe_insert_nodes![$crate::collections::graph::MaybeInsert<$graph, ($id,$data)>, $(($ids,$datas)),*]
+    };
+}
+
 #[allow(unused)]
 #[cfg(test)]
 mod test {
     use typenum::U4;
 
     use super::*;
+    use crate::bool::False;
     use crate::collections::list::Head;
     use crate::dinosaurs::*;
     use crate::num::consts::{U0, U1, U2, U3};
@@ -612,6 +866,11 @@ mod test {
         type ExOut3 = set![TyranosaurusRex];
         assert_type_eq!(Incoming<Disco, TyranosaurusRex>, ExIn3);
         assert_type_eq!(Outgoing<Disco, Iguanodon>, ExOut3);
+
+        type Possibly = MaybeConnect<MyDinos, Just<TyranosaurusRex>, Just<Compsognathus>>;
+        assert_type_eq!(Incoming<Possibly, Compsognathus>, set![TyranosaurusRex]);
+        type Noop = MaybeConnect<Possibly, Nothing, Nothing>;
+        assert_type_eq!(Possibly, Noop);
     }
 
     #[test]
@@ -780,6 +1039,24 @@ mod test {
         assert_type_eq!(Outgoing<Merged, Iguanodon>, set![]);
         assert_type_eq!(Outgoing<Merged, Pachycephalosaurus>, set![]);
         assert_type_eq!(Outgoing<Merged, Compsognathus>, set![]);
+
+        type A = graph! {
+            (TyranosaurusRex, ()): [Iguanodon, Compsognathus],
+            (Iguanodon, ()): [Compsognathus],
+            (Compsognathus, ()): []
+        };
+        type B = graph! {
+            (Iguanodon, ()): [Compsognathus],
+            (Compsognathus, ()): []
+        };
+        type C = graph! {
+            (Compsognathus, ()): []
+        };
+
+        type Abc = merge_graphs![A, B, C];
+        assert_type_eq!(Outgoing<Abc, TyranosaurusRex>, set![Compsognathus, Iguanodon]);
+        assert_type_eq!(Outgoing<Abc, Iguanodon>, set![Compsognathus]);
+        assert_type_eq!(Outgoing<Abc, Compsognathus>, set![]);
     }
 
     #[test]
@@ -793,5 +1070,77 @@ mod test {
         assert_type_eq!(Outgoing<Dinos, Iguanodon>, set![Compsognathus]);
         assert_type_eq!(Outgoing<Dinos, Compsognathus>, set![Pterodactyl]);
         assert_type_eq!(Outgoing<Dinos, Pterodactyl>, set![Iguanodon]);
+    }
+
+    #[test]
+    fn edge_lists() {
+        type Dinos = graph! {
+            (Iguanodon, ()): [Compsognathus],
+            (Compsognathus, ()): [Pterodactyl],
+            (Pterodactyl, ()): []
+        };
+        type Out = <Dinos as OutgoingEdgeList>::Out;
+        type L = list::Len<Out>;
+        assert_type_eq!(L, U2);
+        assert_type_eq!(
+            Out,
+            list![(Iguanodon, Compsognathus), (Compsognathus, Pterodactyl)]
+        );
+    }
+
+    #[test]
+    fn multiinsert() {
+        type Dinos = <(
+            Empty,
+            list![
+                Just<(TyranosaurusRex, ())>,
+                Nothing,
+                Just<(Velociraptor, ())>
+            ],
+        ) as MaybeInsertNodes>::Out;
+        assert_type_eq!(Get<Dinos, TyranosaurusRex>, ());
+        assert_type_eq!(Get<Dinos, Velociraptor>, ());
+    }
+
+    #[test]
+    fn multiconnect() {
+        type Dinos = graph! {
+            (TyranosaurusRex, ()): [],
+            (Velociraptor, ()): [],
+            (Compsognathus, ()): []
+        };
+        type Connected = MultiConnect<
+            Dinos,
+            list![
+                (Just<TyranosaurusRex>, Just<Compsognathus>),
+                (Just<Compsognathus>, Nothing),
+                (Just<Velociraptor>, Just<Compsognathus>)
+            ],
+        >;
+        assert_type_eq!(
+            Connected,
+            graph! {
+                (TyranosaurusRex, ()): [Compsognathus],
+                (Velociraptor, ()): [Compsognathus],
+                (Compsognathus, ()): []
+            }
+        );
+    }
+
+    #[test]
+    fn filtered() {
+        type Dinos = graph! { (TyranosaurusRex, ()): [] };
+        type Noop1 = <(Dinos, (Just<TyranosaurusRex>, ())) as MaybeInsertFiltered>::Out;
+        assert_type_eq!(Dinos, Noop1);
+        type Noop2 = <(Dinos, (Nothing, ())) as MaybeInsertFiltered>::Out;
+        assert_type_eq!(Dinos, Noop2);
+        type Inserted = <(Dinos, (Just<Velociraptor>, ())) as MaybeInsertFiltered>::Out;
+        assert_type_eq!(
+            Inserted,
+            graph! {
+                (Velociraptor, ()): [],
+                (TyranosaurusRex, ()): []
+            }
+        );
     }
 }

@@ -1,6 +1,7 @@
 pub mod array;
 pub mod graph;
 pub mod list;
+pub mod maybe;
 pub mod record;
 pub mod set;
 pub mod tuple;

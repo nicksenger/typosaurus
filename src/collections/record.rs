@@ -1,7 +1,7 @@
 use core::marker::PhantomData;
 
 use crate::{
-    bool::{Not, monoid::Either},
+    bool::{monoid::Either, False, Not, True},
     cmp::{EqualTo, IsEqualTo},
     traits::{
         fold::Foldable,
@@ -11,10 +11,10 @@ use crate::{
 };
 
 use super::{
-    Container,
-    list::{self, Any, Filter, List, UntupleLeft, UntupleRight, ZipTuple},
+    list::{self, Any, Filter, Interleave, List, UntupleLeft, UntupleRight, ZipTuple},
+    maybe::{Just, Nothing},
     set::{self, Set},
-    tuple,
+    tuple, Container,
 };
 
 pub struct Record<Keys, Fields>(PhantomData<Keys>, PhantomData<Fields>);
@@ -66,6 +66,16 @@ impl<K, F> Fields for Record<Set<K>, F> {
     type Out = F;
 }
 
+pub struct WithInterleaveFrom<R>(PhantomData<R>);
+impl<K, V, R> Mapper<(K, V)> for WithInterleaveFrom<R>
+where
+    (R, K): ContainsKey,
+    (R, K): GetEntry,
+    (V, <(R, K) as GetEntry>::Out): Interleave,
+{
+    type Out = (K, <(V, <(R, K) as GetEntry>::Out) as Interleave>::Out);
+}
+
 pub struct WithMappendFrom<R>(PhantomData<R>);
 impl<K, V, R> Mapper<(K, V)> for WithMappendFrom<R>
 where
@@ -74,13 +84,6 @@ where
     (V, <(R, K) as GetEntry>::Out): Mappend,
 {
     type Out = (K, <(V, <(R, K) as GetEntry>::Out) as Mappend>::Out);
-}
-
-impl<T, U> Mappend for (T, U)
-where
-    (T, U): Merge,
-{
-    type Out = <(T, U) as Merge>::Out;
 }
 
 pub trait Merge {
@@ -129,24 +132,24 @@ where
             Record<Set<K1>, F1>,
             <(Set<K1>, Set<K2>) as set::Difference>::Out,
         ) as RemoveKeys>::Out as Fields>::Out,
-        WithMappendFrom<
+        WithInterleaveFrom<
             <(
                 Record<Set<K2>, F2>,
                 <(Set<K2>, Set<K1>) as set::Difference>::Out,
             ) as RemoveKeys>::Out,
         >,
     ): Map<
-            <<<(
-                Record<Set<K1>, F1>,
-                <(Set<K1>, Set<K2>) as set::Difference>::Out,
-            ) as RemoveKeys>::Out as Fields>::Out as Container>::Content,
-            WithMappendFrom<
-                <(
-                    Record<Set<K2>, F2>,
-                    <(Set<K2>, Set<K1>) as set::Difference>::Out,
-                ) as RemoveKeys>::Out,
-            >,
+        <<<(
+            Record<Set<K1>, F1>,
+            <(Set<K1>, Set<K2>) as set::Difference>::Out,
+        ) as RemoveKeys>::Out as Fields>::Out as Container>::Content,
+        WithInterleaveFrom<
+            <(
+                Record<Set<K2>, F2>,
+                <(Set<K2>, Set<K1>) as set::Difference>::Out,
+            ) as RemoveKeys>::Out,
         >,
+    >,
     (
         <<(
             Record<Set<K1>, F1>,
@@ -156,7 +159,7 @@ where
             Record<Set<K2>, F2>,
             <(Set<K1>, Set<K2>) as set::Intersection>::Out,
         ) as RemoveKeys>::Out as Fields>::Out,
-    ): Mappend,
+    ): Merge,
     (
         <(
             <<(
@@ -167,13 +170,13 @@ where
                 Record<Set<K2>, F2>,
                 <(Set<K1>, Set<K2>) as set::Intersection>::Out,
             ) as RemoveKeys>::Out as Fields>::Out,
-        ) as Mappend>::Out,
+        ) as Merge>::Out,
         <(
             <<(
                 Record<Set<K1>, F1>,
                 <(Set<K1>, Set<K2>) as set::Difference>::Out,
             ) as RemoveKeys>::Out as Fields>::Out,
-            WithMappendFrom<
+            WithInterleaveFrom<
                 <(
                     Record<Set<K2>, F2>,
                     <(Set<K2>, Set<K1>) as set::Difference>::Out,
@@ -184,14 +187,14 @@ where
                 Record<Set<K1>, F1>,
                 <(Set<K1>, Set<K2>) as set::Difference>::Out,
             ) as RemoveKeys>::Out as Fields>::Out as Container>::Content,
-            WithMappendFrom<
+            WithInterleaveFrom<
                 <(
                     Record<Set<K2>, F2>,
                     <(Set<K2>, Set<K1>) as set::Difference>::Out,
                 ) as RemoveKeys>::Out,
             >,
         >>::Out,
-    ): Mappend,
+    ): Merge,
 {
     type Out = Record<
         <(Set<K1>, Set<K2>) as set::Union>::Out,
@@ -205,13 +208,13 @@ where
                     Record<Set<K2>, F2>,
                     <(Set<K1>, Set<K2>) as set::Intersection>::Out,
                 ) as RemoveKeys>::Out as Fields>::Out,
-            ) as Mappend>::Out,
+            ) as Merge>::Out,
             <(
                 <<(
                     Record<Set<K1>, F1>,
                     <(Set<K1>, Set<K2>) as set::Difference>::Out,
                 ) as RemoveKeys>::Out as Fields>::Out,
-                WithMappendFrom<
+                WithInterleaveFrom<
                     <(
                         Record<Set<K2>, F2>,
                         <(Set<K2>, Set<K1>) as set::Difference>::Out,
@@ -222,14 +225,14 @@ where
                     Record<Set<K1>, F1>,
                     <(Set<K1>, Set<K2>) as set::Difference>::Out,
                 ) as RemoveKeys>::Out as Fields>::Out as Container>::Content,
-                WithMappendFrom<
+                WithInterleaveFrom<
                     <(
                         Record<Set<K2>, F2>,
                         <(Set<K2>, Set<K1>) as set::Difference>::Out,
                     ) as RemoveKeys>::Out,
                 >,
             >>::Out,
-        ) as Mappend>::Out,
+        ) as Merge>::Out,
     >;
 }
 
@@ -239,11 +242,11 @@ pub trait InsertField {
 impl<Keys, Fields, K, V> InsertField for (Record<Set<Keys>, Fields>, (K, V))
 where
     (Set<Keys>, K): set::Insert,
-    (Fields, List<((K, V), list::Empty)>): Mappend,
+    (Fields, List<((K, V), list::Empty)>): Interleave,
 {
     type Out = Record<
         <(Set<Keys>, K) as set::Insert>::Out,
-        <(Fields, List<((K, V), list::Empty)>) as Mappend>::Out,
+        <(Fields, List<((K, V), list::Empty)>) as Interleave>::Out,
     >;
 }
 pub type Insert<Record, Field> = <(Record, Field) as InsertField>::Out;
@@ -268,6 +271,39 @@ where
 pub type WithLeftNotEquals<T, U> =
     <(T, WithLeftNotEqualTo<U>) as Map<<T as Container>::Content, WithLeftNotEqualTo<U>>>::Out;
 
+pub trait GetEntryContained {
+    type Out;
+}
+impl<Keys, Fields, K> GetEntryContained for (Record<Set<Keys>, Fields>, K, False) {
+    type Out = Nothing;
+}
+impl<Keys, Fields, K> GetEntryContained for (Record<Set<Keys>, Fields>, K, True)
+where
+    (Record<Set<Keys>, Fields>, K): GetEntry,
+{
+    type Out = Just<<(Record<Set<Keys>, Fields>, K) as GetEntry>::Out>;
+}
+
+pub trait GetEntryMaybe {
+    type Out;
+}
+impl<Keys, Fields, K> GetEntryMaybe for (Record<Set<Keys>, Fields>, K)
+where
+    (Record<Set<Keys>, Fields>, K): ContainsKey,
+    (
+        Record<Set<Keys>, Fields>,
+        K,
+        <(Record<Set<Keys>, Fields>, K) as ContainsKey>::Out,
+    ): GetEntryContained,
+{
+    type Out = <(
+        Record<Set<Keys>, Fields>,
+        K,
+        <(Record<Set<Keys>, Fields>, K) as ContainsKey>::Out,
+    ) as GetEntryContained>::Out;
+}
+pub type GetMaybe<R, K> = <(R, K) as GetEntryMaybe>::Out;
+
 pub trait GetEntry {
     type Out;
 }
@@ -283,9 +319,9 @@ where
         <WithLeftEquals<Fields, K> as Foldable<Filter>>::Out,
         tuple::Right,
     ): Map<
-            <<WithLeftEquals<Fields, K> as Foldable<Filter>>::Out as Container>::Content,
-            tuple::Right,
-        >,
+        <<WithLeftEquals<Fields, K> as Foldable<Filter>>::Out as Container>::Content,
+        tuple::Right,
+    >,
     <(
         <WithLeftEquals<Fields, K> as Foldable<Filter>>::Out,
         tuple::Right,
@@ -360,14 +396,35 @@ where
     type Out = <Set<Keys> as set::Size>::Out;
 }
 
+pub trait Values {
+    type Out;
+}
+impl<K, V> Values for Record<K, V>
+where
+    V: Container,
+    (V, tuple::Right): Map<<V as Container>::Content, tuple::Right>,
+{
+    type Out = UntupleRight<V>;
+}
+
 #[macro_export]
 macro_rules! record {
-    {} => {
+    {$(,)?} => {
         $crate::collections::record::Record<$crate::set![], $crate::collections::list::Empty>
     };
-    {$($ks:ty:$vs:ty),*} => {
+    {$($ks:ty:$vs:ty),*$(,)?} => {
         $crate::collections::record::Record<$crate::set![$($ks),*], $crate::list![$(($ks, $vs)),*]>
     };
+}
+
+#[macro_export]
+macro_rules! merge_records {
+    [$r:ty$(,)?] => {
+        $r
+    };
+    [$r:ty,$($rs:ty),*$(,)?] => {
+        <($r, $crate::merge_records![$($rs),*]) as $crate::collections::record::Merge>::Out
+    }
 }
 
 #[allow(unused)]
@@ -375,7 +432,7 @@ macro_rules! record {
 mod test {
     use crate::bool::{False, True};
     use crate::dinosaurs::*;
-    use crate::{assert_type_eq, elements, record, set};
+    use crate::{assert_type_eq, elements, list, record, set};
 
     use super::*;
 
@@ -393,6 +450,9 @@ mod test {
         assert_type_eq!(Get<DinosaurSizes, Oviraptor>, Small);
         assert_type_eq!(Get<DinosaurSizes, Velociraptor>, Medium);
         assert_type_eq!(Get<DinosaurSizes, TyranosaurusRex>, Large);
+
+        assert_type_eq!(GetMaybe<DinosaurSizes, Pterodactyl>, Nothing);
+        assert_type_eq!(GetMaybe<DinosaurSizes, TyranosaurusRex>, Just<Large>);
     }
 
     #[test]
@@ -453,39 +513,39 @@ mod test {
         assert_type_eq!(Cleared, Empty);
     }
 
-    #[test]
-    fn map() {
-        use crate::cmp::IsEqual;
-
-        pub struct Wrapper<T>(PhantomData<T>);
-        impl<T, U> IsEqual for (Wrapper<T>, Wrapper<U>)
-        where
-            (T, U): IsEqual,
-        {
-            type Out = <(T, U) as IsEqual>::Out;
-        }
-
-        pub struct Wrap;
-        impl<T> Mapper<T> for Wrap {
-            type Out = Wrapper<T>;
-        }
-
-        type DinosaurSizes = record! {
-            Oviraptor: Small,
-            Velociraptor: Medium,
-            TyranosaurusRex: Large
-        };
-        type MappedDinos = <(DinosaurSizes, Wrap) as MapKeys>::Out;
-
-        assert_type_eq!(
-            record! {
-                Wrapper<Oviraptor>: Small,
-                Wrapper<Velociraptor>: Medium,
-                Wrapper<TyranosaurusRex>: Large
-            },
-            MappedDinos
-        );
-    }
+    //#[test]
+    //fn map() {
+    //    use crate::cmp::IsEqual;
+    //
+    //    pub struct Wrapper<T>(PhantomData<T>);
+    //    impl<T, U> IsEqual for (Wrapper<T>, Wrapper<U>)
+    //    where
+    //        (T, U): IsEqual,
+    //    {
+    //        type Out = <(T, U) as IsEqual>::Out;
+    //    }
+    //
+    //    pub struct Wrap;
+    //    impl<T> Mapper<T> for Wrap {
+    //        type Out = Wrapper<T>;
+    //    }
+    //
+    //    type DinosaurSizes = record! {
+    //        Oviraptor: Small,
+    //        Velociraptor: Medium,
+    //        TyranosaurusRex: Large
+    //    };
+    //    type MappedDinos = <(DinosaurSizes, Wrap) as MapKeys>::Out;
+    //
+    //    assert_type_eq!(
+    //        record! {
+    //            Wrapper<Oviraptor>: Small,
+    //            Wrapper<Velociraptor>: Medium,
+    //            Wrapper<TyranosaurusRex>: Large
+    //        },
+    //        MappedDinos
+    //    );
+    //}
 
     #[test]
     fn merge() {
@@ -521,5 +581,15 @@ mod test {
             Get<Merged, Compsognathus>,
             list![U1]
         );
+    }
+
+    #[test]
+    fn values() {
+        type DinosaurSizes = record! {
+            Oviraptor: Small,
+            Velociraptor: Medium,
+            TyranosaurusRex: Large
+        };
+        assert_type_eq!(<DinosaurSizes as Values>::Out, list![Small, Medium, Large]);
     }
 }

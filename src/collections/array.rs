@@ -23,6 +23,19 @@ where
         <UInt<U, B> as typenum::Unsigned>::USIZE
     }
 }
+impl<A, B> Arrayify<(usize, usize)> for (A, B)
+where
+    A: Arrayify<usize, Out = usize>,
+    B: Arrayify<usize, Out = usize>,
+{
+    type Out = (usize, usize);
+    fn value() -> (usize, usize) {
+        (
+            <A as Arrayify<usize>>::value(),
+            <B as Arrayify<usize>>::value(),
+        )
+    }
+}
 
 macro_rules! arrayify {
     [$t:ident,$($ts:ident),*;$n:expr] => {
@@ -62,6 +75,18 @@ arrayify![T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13; 13];
 arrayify![T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14; 14];
 arrayify![T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15; 15];
 arrayify![T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16; 16];
+arrayify![T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17; 17];
+arrayify![T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18; 18];
+arrayify![T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19; 19];
+arrayify![T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20; 20];
+arrayify![T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21; 21];
+arrayify![T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22; 22];
+arrayify![T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23; 23];
+arrayify![T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23, T24; 24];
+arrayify![T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23, T24, T25; 25];
+arrayify![T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23, T24, T25, T26; 26];
+arrayify![T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23, T24, T25, T26, T27; 27];
+arrayify![T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20, T21, T22, T23, T24, T25, T26, T27, T28; 28];
 
 #[cfg(test)]
 mod test {
