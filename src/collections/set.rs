@@ -1,7 +1,7 @@
 use core::marker::PhantomData;
 
 use crate::{
-    bool::{False, Falsy, Not, True, Truthy, monoid::Either},
+    bool::{monoid::Either, False, Falsy, Not, True, Truthy},
     cmp::{EqualTo, IsEqual, IsEqualTo},
     num::Addition,
     traits::{
@@ -12,12 +12,22 @@ use crate::{
 };
 
 use super::{
-    Container,
     list::{self, Any, Exclude, Filter, IntoOnes, List, Ones, WithNotEqualTo},
+    Container,
 };
 
 pub struct Set<T>(PhantomData<T>);
 pub type Empty = Set<list::Empty>;
+
+pub trait IntoList {
+    type Out;
+}
+impl IntoList for Empty {
+    type Out = list::Empty;
+}
+impl<T, U> IntoList for Set<List<(T, U)>> {
+    type Out = List<(T, U)>;
+}
 
 impl<T> Container for Set<T>
 where
@@ -184,25 +194,38 @@ macro_rules! set {
 #[macro_export]
 macro_rules! elements {
     [$t:ty] => {
-        impl $crate::cmp::IsEqual for ($t, $t) {
+        impl $crate::cmp::Equality<$t> for $t {
             type Out = $crate::bool::True;
         }
     };
     [$t1:ty,$($ts:ty),+] => {
-        impl $crate::cmp::IsEqual for ($t1, $t1) {
+        impl $crate::cmp::Equality<$t1> for $t1 {
             type Out = $crate::bool::True;
         }
 
         $(
-            impl $crate::cmp::IsEqual for ($t1, $ts) {
+            impl $crate::cmp::Equality<$ts> for $t1 {
                 type Out = $crate::bool::False;
             }
-            impl $crate::cmp::IsEqual for ($ts, $t1) {
+            impl $crate::cmp::Equality<$t1> for $ts {
                 type Out = $crate::bool::False;
             }
         )+
 
         $crate::elements![$($ts),+];
+    };
+}
+
+#[macro_export]
+macro_rules! merge_sets {
+    [$(,)?] => {
+      $crate::collections::set::Empty
+    };
+    [$s:ty$(,)?] => {
+        $s
+    };
+    [$s:ty,$($ss:ty),+$(,)?] => {
+        <($s, $crate::merge_sets![$($ss),+]) as $crate::collections::set::Union>::Out
     };
 }
 

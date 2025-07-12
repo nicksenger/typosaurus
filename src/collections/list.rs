@@ -1,7 +1,7 @@
 use core::ops::Add;
 use core::{marker::PhantomData, ops::Sub};
 
-use typenum::{Bit, IsEqual, U0, U1, UInt, Unsigned};
+use typenum::{Bit, IsEqual, UInt, Unsigned, U0, U1};
 
 use crate::bool::monoid::{Both, Either};
 use crate::bool::{And, Bool, False, Not, Or, True};
@@ -21,7 +21,8 @@ use super::tuple;
 
 #[macro_export]
 macro_rules! list {
-    [$a:ty] => { $crate::collections::list::List<($a, $crate::collections::list::List<()>)> };
+    [] => { $crate::collections::list::Empty };
+    [$a:ty$(,)?] => { $crate::collections::list::List<($a, $crate::collections::list::List<()>)> };
     [$a:ty,$($bs:ty),+] => { $crate::collections::list::List<($a, $crate::list![$($bs),+])> };
 }
 pub type Append<A, B> = <(A, B) as Mappend>::Out;
@@ -144,6 +145,10 @@ pub type Only<T, U> = <WithEquals<T, U> as Foldable<Filter>>::Out;
 pub type UntupleLeft<T> = <(T, tuple::Left) as Map<<T as Container>::Content, tuple::Left>>::Out;
 pub type UntupleRight<T> = <(T, tuple::Right) as Map<<T as Container>::Content, tuple::Right>>::Out;
 
+pub struct With<U>(PhantomData<U>);
+impl<T, U> Mapper<T> for With<U> {
+    type Out = (U, T);
+}
 pub struct WithEqualTo<U>(PhantomData<U>);
 impl<T, U> Mapper<T> for WithEqualTo<U>
 where
@@ -170,6 +175,17 @@ impl<Lhs, Rhs> Semigroup<(Lhs, False), Rhs> for Filter {
     type Mappend = Rhs;
 }
 impl Mempty for Filter {
+    type Out = Empty;
+}
+
+pub struct Concat;
+impl<Lhs, Rhs> Semigroup<Lhs, Rhs> for Concat
+where
+    (Lhs, Rhs): Mappend,
+{
+    type Mappend = <(Lhs, Rhs) as Mappend>::Out;
+}
+impl Mempty for Concat {
     type Out = Empty;
 }
 
@@ -361,13 +377,26 @@ where
     type Out = <(List<((A, B), Empty)>, <(T, U) as ZipTuple>::Out) as Mappend>::Out;
 }
 
+#[macro_export]
+macro_rules! merge_lists {
+    [$(,)?] => {
+      $crate::collections::list::Empty
+    };
+    [$l:ty$(,)?] => {
+        $l
+    };
+    [$l:ty,$($ls:ty),+$(,)?] => {
+        <($l, $crate::merge_lists![$($ls),+]) as $crate::traits::semigroup::Mappend>::Out
+    };
+}
+
 #[cfg(test)]
 mod test {
     use crate::dinosaurs::*;
 
     use super::*;
 
-    use typenum::{U2, U3, U4, U5, U10, assert_type_eq};
+    use typenum::{assert_type_eq, U10, U2, U3, U4, U5};
 
     #[test]
     #[allow(unused)]
@@ -620,5 +649,31 @@ mod test {
         type B = list![U0, U0, U1, U2];
         assert_type_eq!(<A as IsUnique>::Out, True);
         assert_type_eq!(<B as IsUnique>::Out, False);
+    }
+
+    #[test]
+    #[allow(unused)]
+    fn merge() {
+        type Tyranosaurs = list![
+            TyranosaurusRex,
+            NanotyranosaurusLancensis,
+            DaspletosaurusTorosus,
+            NanuqsaurusHoglundi,
+            TeratophoneusCurriei
+        ];
+        type Raptors = list![Velociraptor, Oviraptor, Microraptor];
+        assert_type_eq!(
+            merge_lists![Tyranosaurs, Raptors],
+            list![
+                TyranosaurusRex,
+                NanotyranosaurusLancensis,
+                DaspletosaurusTorosus,
+                NanuqsaurusHoglundi,
+                TeratophoneusCurriei,
+                Velociraptor,
+                Oviraptor,
+                Microraptor
+            ]
+        );
     }
 }
