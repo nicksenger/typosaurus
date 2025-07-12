@@ -1,7 +1,7 @@
 use core::ops::Add;
 use core::{marker::PhantomData, ops::Sub};
 
-use typenum::{Bit, IsEqual, U0, U1, UInt, Unsigned};
+use typenum::{Bit, IsEqual, UInt, Unsigned, U0, U1};
 
 use crate::bool::monoid::{Both, Either};
 use crate::bool::{And, Bool, False, Not, Or, True};
@@ -21,7 +21,8 @@ use super::tuple;
 
 #[macro_export]
 macro_rules! list {
-    [$a:ty] => { $crate::collections::list::List<($a, $crate::collections::list::List<()>)> };
+    [$(,)?] => { $crate::collections::list::Empty };
+    [$a:ty$(,)?] => { $crate::collections::list::List<($a, $crate::collections::list::List<()>)> };
     [$a:ty,$($bs:ty),+] => { $crate::collections::list::List<($a, $crate::list![$($bs),+])> };
 }
 pub type Append<A, B> = <(A, B) as Mappend>::Out;
@@ -100,12 +101,12 @@ where
     (
         List<(H, Empty)>,
         <(T, <UInt<U, B> as Sub<U1>>::Output) as Takeable>::Out,
-    ): Mappend,
+    ): Interleave,
 {
     type Out = <(
         List<(H, Empty)>,
         <(T, <UInt<U, B> as Sub<U1>>::Output) as Takeable>::Out,
-    ) as Mappend>::Out;
+    ) as Interleave>::Out;
 }
 
 pub trait Skippable {
@@ -144,6 +145,10 @@ pub type Only<T, U> = <WithEquals<T, U> as Foldable<Filter>>::Out;
 pub type UntupleLeft<T> = <(T, tuple::Left) as Map<<T as Container>::Content, tuple::Left>>::Out;
 pub type UntupleRight<T> = <(T, tuple::Right) as Map<<T as Container>::Content, tuple::Right>>::Out;
 
+pub struct With<U>(PhantomData<U>);
+impl<T, U> Mapper<T> for With<U> {
+    type Out = (U, T);
+}
 pub struct WithEqualTo<U>(PhantomData<U>);
 impl<T, U> Mapper<T> for WithEqualTo<U>
 where
@@ -162,14 +167,25 @@ where
 pub struct Filter;
 impl<Lhs, Rhs> Semigroup<(Lhs, True), Rhs> for Filter
 where
-    (Rhs, List<(Lhs, Empty)>): Mappend,
+    (Rhs, List<(Lhs, Empty)>): Interleave,
 {
-    type Mappend = <(Rhs, List<(Lhs, Empty)>) as Mappend>::Out;
+    type Mappend = <(Rhs, List<(Lhs, Empty)>) as Interleave>::Out;
 }
 impl<Lhs, Rhs> Semigroup<(Lhs, False), Rhs> for Filter {
     type Mappend = Rhs;
 }
 impl Mempty for Filter {
+    type Out = Empty;
+}
+
+pub struct Concat;
+impl<Lhs, Rhs> Semigroup<Lhs, Rhs> for Concat
+where
+    (Lhs, Rhs): Interleave,
+{
+    type Mappend = <(Lhs, Rhs) as Interleave>::Out;
+}
+impl Mempty for Concat {
     type Out = Empty;
 }
 
@@ -223,6 +239,25 @@ where
     type Out = List<(A, <(B, List<(C, D)>) as Mappend>::Out)>;
 }
 
+pub trait Interleave {
+    type Out;
+}
+impl Interleave for (List<()>, List<()>) {
+    type Out = List<()>;
+}
+impl<A, B> Interleave for (List<()>, List<(A, B)>) {
+    type Out = List<(A, B)>;
+}
+impl<A, B> Interleave for (List<(A, B)>, List<()>) {
+    type Out = List<(A, B)>;
+}
+impl<A, B, C, D> Interleave for (List<(A, B)>, List<(C, D)>)
+where
+    (B, D): Interleave,
+{
+    type Out = List<(A, List<(C, <(B, D) as Interleave>::Out)>)>;
+}
+
 impl<A, B, C, M> Map<A, M> for (List<(A, List<(B, C)>)>, M)
 where
     M: Mapper<A> + Mapper<B>,
@@ -273,9 +308,9 @@ impl Reversible for Empty {
 impl<T, U> Reversible for List<(T, U)>
 where
     U: Reversible,
-    (<U as Reversible>::Out, List<(T, Empty)>): Mappend,
+    (<U as Reversible>::Out, List<(T, Empty)>): Interleave,
 {
-    type Out = <(<U as Reversible>::Out, List<(T, Empty)>) as Mappend>::Out;
+    type Out = <(<U as Reversible>::Out, List<(T, Empty)>) as Interleave>::Out;
 }
 pub type Rev<T> = <T as Reversible>::Out;
 
@@ -291,12 +326,12 @@ where
     (
         List<(List<(U0, List<(T, Empty)>)>, Empty)>,
         <U as Enumerable<U1>>::Out,
-    ): Mappend,
+    ): Interleave,
 {
     type Out = <(
         List<(List<(U0, List<(T, Empty)>)>, Empty)>,
         <U as Enumerable<U1>>::Out,
-    ) as Mappend>::Out;
+    ) as Interleave>::Out;
 }
 impl<T, U, A, B> Enumerable<UInt<A, B>> for List<(T, U)>
 where
@@ -305,12 +340,12 @@ where
     (
         List<(List<(UInt<A, B>, List<(T, Empty)>)>, Empty)>,
         <U as Enumerable<<UInt<A, B> as Add<U1>>::Output>>::Out,
-    ): Mappend,
+    ): Interleave,
 {
     type Out = <(
         List<(List<(UInt<A, B>, List<(T, Empty)>)>, Empty)>,
         <U as Enumerable<<UInt<A, B> as Add<U1>>::Output>>::Out,
-    ) as Mappend>::Out;
+    ) as Interleave>::Out;
 }
 pub type Enumerate<T> = <T as Enumerable<U0>>::Out;
 
@@ -332,12 +367,12 @@ where
     (
         List<(List<(A, List<(B, Empty)>)>, Empty)>,
         <(T, U) as Zippable>::Out,
-    ): Mappend,
+    ): Interleave,
 {
     type Out = <(
         List<(List<(A, List<(B, Empty)>)>, Empty)>,
         <(T, U) as Zippable>::Out,
-    ) as Mappend>::Out;
+    ) as Interleave>::Out;
 }
 pub type Zip<T, U> = <(T, U) as Zippable>::Out;
 
@@ -356,9 +391,22 @@ impl<T, U> ZipTuple for (List<(T, U)>, Empty) {
 impl<A, B, T, U> ZipTuple for (List<(A, T)>, List<(B, U)>)
 where
     (T, U): ZipTuple,
-    (List<((A, B), Empty)>, <(T, U) as ZipTuple>::Out): Mappend,
+    (List<((A, B), Empty)>, <(T, U) as ZipTuple>::Out): Interleave,
 {
-    type Out = <(List<((A, B), Empty)>, <(T, U) as ZipTuple>::Out) as Mappend>::Out;
+    type Out = <(List<((A, B), Empty)>, <(T, U) as ZipTuple>::Out) as Interleave>::Out;
+}
+
+#[macro_export]
+macro_rules! merge_lists {
+    [$(,)?] => {
+      $crate::collections::list::Empty
+    };
+    [$l:ty$(,)?] => {
+        $l
+    };
+    [$l:ty,$($ls:ty),+$(,)?] => {
+        <($l, $crate::merge_lists![$($ls),+]) as $crate::collections::list::Interleave>::Out
+    };
 }
 
 #[cfg(test)]
@@ -367,7 +415,7 @@ mod test {
 
     use super::*;
 
-    use typenum::{U2, U3, U4, U5, U10, assert_type_eq};
+    use typenum::{assert_type_eq, U10, U2, U3, U4, U5};
 
     #[test]
     #[allow(unused)]
@@ -620,5 +668,31 @@ mod test {
         type B = list![U0, U0, U1, U2];
         assert_type_eq!(<A as IsUnique>::Out, True);
         assert_type_eq!(<B as IsUnique>::Out, False);
+    }
+
+    #[test]
+    #[allow(unused)]
+    fn merge() {
+        type Tyranosaurs = list![
+            TyranosaurusRex,
+            NanotyranosaurusLancensis,
+            DaspletosaurusTorosus,
+            NanuqsaurusHoglundi,
+            TeratophoneusCurriei
+        ];
+        type Raptors = list![Velociraptor, Oviraptor, Microraptor];
+        //assert_type_eq!(
+        //    merge_lists![Tyranosaurs, Raptors],
+        //    list![
+        //        TyranosaurusRex,
+        //        NanotyranosaurusLancensis,
+        //        DaspletosaurusTorosus,
+        //        NanuqsaurusHoglundi,
+        //        TeratophoneusCurriei,
+        //        Velociraptor,
+        //        Oviraptor,
+        //        Microraptor
+        //    ]
+        //);
     }
 }
